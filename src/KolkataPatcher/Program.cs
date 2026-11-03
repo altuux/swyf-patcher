@@ -556,7 +556,6 @@ internal class Program
         SetField("edgeSessionExpires", OpCodes.Ldc_I8, 2147483647L);
         SetField("edgeAiExpires", OpCodes.Ldc_I8, 2147483647L);
         SetField("edgeAiRefreshAt", OpCodes.Ldc_I8, 2147483647L);
-        SetField("edgeServerTime", OpCodes.Ldc_I8, 1792618285L);
         SetField("edgeSession", OpCodes.Ldstr, "bypassed_session_token");
         SetField("edgeAi", OpCodes.Ldstr, "bypassed_ai_token");
 
