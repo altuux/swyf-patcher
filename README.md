@@ -139,7 +139,15 @@ python -m pip install nuitka
 python -m nuitka --onefile --standalone --output-filename=SWYF-Gateway.exe tools/cli.py
 ```
 
----
+## Star History
+
+<a href="https://www.star-history.com/?repos=altuux%2Fswyf-patcher&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=altuux/swyf-patcher&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=altuux/swyf-patcher&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=altuux/swyf-patcher&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## License
 
