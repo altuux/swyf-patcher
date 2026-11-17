@@ -82,18 +82,48 @@ def _downgrade_json_schema_to_json_object(body: Dict[str, Any]) -> None:
             msgs.insert(0, {"role": "system", "content": instruction})
     body["response_format"] = {"type": "json_object"}
 
-def _normalize_response(res_json: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_json_from_text(text: str) -> Optional[str]:
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            json.loads(stripped)
+            return stripped
+        except Exception:
+            pass
+    start = stripped.rfind("{")
+    end = stripped.rfind("}")
+    if start != -1 and end > start:
+        candidate = stripped[start:end + 1]
+        try:
+            json.loads(candidate)
+            return candidate
+        except Exception:
+            pass
+    return None
+
+def _normalize_response(res_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     choices = res_json.get("choices")
     if isinstance(choices, list):
         for ch in choices:
             msg = ch.get("message") if isinstance(ch, dict) else None
-            if isinstance(msg, dict) and not str(msg.get("content") or "").strip():
+            if not isinstance(msg, dict):
+                continue
+            if not str(msg.get("content") or "").strip():
                 reasoning = msg.get("reasoning") or msg.get("reasoning_content")
                 if isinstance(reasoning, str) and reasoning.strip():
-                    msg["content"] = reasoning
+                    extracted = _extract_json_from_text(reasoning)
+                    if extracted:
+                        msg["content"] = extracted
+            # Strip raw reasoning fields so the game never accidentally reads them
+            msg.pop("reasoning", None)
+            msg.pop("reasoning_content", None)
+            msg.pop("reasoning_details", None)
+        first_msg = choices[0].get("message") if choices and isinstance(choices[0], dict) else None
+        if isinstance(first_msg, dict) and not str(first_msg.get("content") or "").strip():
+            return None
     return res_json
 
-def _send_single(endpoint: str, body: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+def _send_single(endpoint: str, body: Dict[str, Any], headers: Dict[str, str]) -> Optional[Dict[str, Any]]:
     req_data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(endpoint, data=req_data, headers=headers, method="POST")
     start_time = time.time()
@@ -141,6 +171,8 @@ def forward_request(payload: Dict[str, Any], provider: str, api_key: str, model_
     if provider == "openrouter":
         headers["HTTP-Referer"] = "https://github.com/altuux/swyf-patcher"
         headers["X-Title"] = "SWYF Toolkit"
+        if "reasoning" not in body:
+            body["reasoning"] = {"enabled": False, "exclude": True}
 
     models_to_try = [model]
     if provider == "groq":
@@ -151,8 +183,16 @@ def forward_request(payload: Dict[str, Any], provider: str, api_key: str, model_
     for candidate_model in models_to_try:
         attempt_body = copy.deepcopy(body)
         attempt_body["model"] = candidate_model
+        if provider == "groq" and "gpt-oss" in candidate_model:
+            attempt_body["reasoning_effort"] = "low"
+            if isinstance(attempt_body.get("max_tokens"), int) and attempt_body["max_tokens"] < 1024:
+                attempt_body["max_tokens"] = 1024
         try:
-            return _send_single(endpoint, attempt_body, headers)
+            res = _send_single(endpoint, attempt_body, headers)
+            if res is None:
+                print(f"[!] {provider.upper()} ({candidate_model}) returned empty content (reasoning exhausted max_tokens), trying next...")
+                continue
+            return res
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode("utf-8", errors="ignore")
             # Automatic fallback if Groq deprecates a model ID or hits 429 rate limit on this specific model
