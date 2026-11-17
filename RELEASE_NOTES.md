@@ -1,27 +1,24 @@
-# Release v2.0.3
+# Release v2.0.4
 
-## What's Changed in v2.0.3 (Critical Fresh-Install Hotfix)
+## What's Changed in v2.0.4 (Hotfix)
 
 ### Fixes
 
-- **Fixed Gateway Never Receiving Calls on Fresh Installs (`HostAiSettings.SelectedModel`)**:
-  - On clean installations where a player never manually selected an OpenRouter model inside the in-game Host Settings menu (`MetaSave/local.json`), `HostAiSettings.SelectedModel` returned `null`.
-  - After bypassing the `"Choose an OpenRouter model in Host Settings."` check in `CompleteOpenRouterAsync`, `PrepareDirectOpenRouterBody` immediately dereferenced `model.Id` on `null`, throwing a `NullReferenceException` inside Unity before any HTTP request could be sent to `http://127.0.0.1:8888/v1/chat/completions`.
-  - `KolkataPatcher` now patches `HostAiSettings.SelectedModel`, `ApiKey`, `HasSavedKey`, and `HasInvalidKey` in `ScriptsAssDef.dll` with a valid built-in gateway `OpenRouterModel` profile so calls reach `SWYF-Gateway` out-of-the-box with zero in-game menu configuration.
-
----
-
-## Previous Changes in v2.0.2
-
-- **Workstation Webcam & Camera App Restored (`DelayedEnableImmediateDisable`)**:
-  - Restored missing `IImmediateCameraTargetDisabler.get_TargetCamera` property on `DelayedEnableImmediateDisable` in `Assembly-CSharp.dll` so the Kolkata OS **Camera** and **Zoomy** apps display the live character webcam feed instead of staying stuck on the 3D monitor logo.
-- **Groq API Gateway & Tester Fixes (`tools/`)**:
-  - Resolved Cloudflare Error 1010 (`HTTP 403`), updated Groq model pool to `qwen/qwen3.8-27b` with automatic fallbacks, stripped OpenRouter-only payload fields when forwarding to Groq/DeepSeek, and fixed `swyf_config.json` persistence next to standalone Nuitka `--onefile` binaries.
+- **PC Clock Error Bypass (`KolkataApi.SystemClockIncorrect`)**:
+  - Resolves Issues #2 and #4 where the game blocked startup/play with *"Game says my PC clock is incorrect"* due to `edgeServerTime` drifting more than 300 seconds behind real UTC time.
+  - `KolkataPatcher` now patches `KolkataApi.SystemClockIncorrect` to always return `false`.
+- **`PatchCoreModule` `NullReferenceException` Fix (`RedirectMethod`)**:
+  - Resolves Issues #1, #5, and #6 where patching failed in `KolkataPatcher.Program.<PatchCoreModule>g__RedirectMethod` on builds where `UnityEngine.PlayerPrefs` methods existed as `extern` (`InternalCall`) methods with a null IL `MethodBody`.
+  - Properly clears `InternalCall` / `PInvokeImpl` flags and initializes a fresh `MethodBody` before emitting IL redirects.
+- **AI Gateway Stability & Reasoning Normalization (`tools/proxy.py`)**:
+  - Prevents `ConnectionAbortedError` (`WinError 10053`) / `BrokenPipeError` thread crashes when the game closes a socket mid-request (e.g. when a call ends or cancels).
+  - Automatically cascades across independent Groq free-tier model quotas (`qwen/qwen3.8-27b` -> `openai/gpt-oss-120b` -> `openai/gpt-oss-20b`) on `HTTP 429` using the same API key.
+  - Normalizes `reasoning_content` as well as `reasoning` when `content` is empty or whitespace-only.
 
 ---
 
 ## Assets
 
-- `SWYF-Complete-Package-v2.0.3.zip`: All-in-one package for Windows (`KolkataPatcher.exe` + `SWYF-Gateway.exe` + `README.md`).
-- `SWYF-Complete-Package-Linux-v2.0.3.tar.gz` / `.zip`: All-in-one package for Linux / Steam Deck (`KolkataPatcher-linux` + `SWYF-Gateway-linux` + `README.md`).
+- `SWYF-Complete-Package-v2.0.4.zip`: All-in-one package for Windows (`KolkataPatcher.exe` + `SWYF-Gateway.exe` + `README.md`).
+- `SWYF-Complete-Package-Linux-v2.0.4.tar.gz` / `.zip`: All-in-one package for Linux / Steam Deck (`KolkataPatcher-linux` + `SWYF-Gateway-linux` + `README.md`).
 - Standalone binaries: `KolkataPatcher.exe`, `KolkataPatcher-linux`, `SWYF-Gateway.exe`, `SWYF-Gateway-linux`.

@@ -87,8 +87,8 @@ def _normalize_response(res_json: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(choices, list):
         for ch in choices:
             msg = ch.get("message") if isinstance(ch, dict) else None
-            if isinstance(msg, dict) and not msg.get("content"):
-                reasoning = msg.get("reasoning")
+            if isinstance(msg, dict) and not str(msg.get("content") or "").strip():
+                reasoning = msg.get("reasoning") or msg.get("reasoning_content")
                 if isinstance(reasoning, str) and reasoning.strip():
                     msg["content"] = reasoning
     return res_json
@@ -183,6 +183,16 @@ class GameProxyHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+    def _safe_send_json(self, status_code: int, payload_bytes: bytes) -> None:
+        try:
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload_bytes)))
+            self.end_headers()
+            self.wfile.write(payload_bytes)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
+            print("[!] Game client disconnected before response could be sent.")
+
     def do_POST(self):
         content_len = int(self.headers.get("Content-Length", 0))
         raw_body = self.rfile.read(content_len)
@@ -232,20 +242,12 @@ class GameProxyHandler(http.server.BaseHTTPRequestHandler):
             print(f"[+] Call completed successfully via {successful_provider.upper()} in {latency}ms!")
 
             res_bytes = json.dumps(response).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(res_bytes)))
-            self.end_headers()
-            self.wfile.write(res_bytes)
+            self._safe_send_json(200, res_bytes)
         else:
             pool.stats["failed_requests"] += 1
             print("[-] All configured providers and keys failed!")
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
             err_payload = json.dumps({"error": {"message": "All AI providers in SWYF Proxy failed or have no valid keys."}}).encode("utf-8")
-            self.send_header("Content-Length", str(len(err_payload)))
-            self.end_headers()
-            self.wfile.write(err_payload)
+            self._safe_send_json(503, err_payload)
 
 def run_proxy(port: int = 8888):
     server_address = ("127.0.0.1", port)

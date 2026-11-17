@@ -244,9 +244,19 @@ internal class Program
             if (existing != null)
             {
                 method = existing;
-                method.Body.Instructions.Clear();
-                method.Body.Variables.Clear();
-                method.Body.ExceptionHandlers.Clear();
+                method.IsInternalCall = false;
+                method.IsPInvokeImpl = false;
+                method.ImplAttributes = MethodImplAttributes.IL | MethodImplAttributes.Managed;
+                if (method.Body == null)
+                {
+                    method.Body = new Mono.Cecil.Cil.MethodBody(method);
+                }
+                else
+                {
+                    method.Body.Instructions.Clear();
+                    method.Body.Variables.Clear();
+                    method.Body.ExceptionHandlers.Clear();
+                }
             }
             else
             {
@@ -642,7 +652,7 @@ internal class Program
             Console.ResetColor();
         }
 
-        // 5. Patch ShouldShowPiracyWarning
+        // 5. Patch ShouldShowPiracyWarning & SystemClockIncorrect
         var piracyMethod = apiType.Methods.First(m => m.Name == "ShouldShowPiracyWarning");
         piracyMethod.Body.Instructions.Clear();
         piracyMethod.Body.Variables.Clear();
@@ -653,6 +663,21 @@ internal class Program
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("[*] Patched ShouldShowPiracyWarning (disabled alarm)");
         Console.ResetColor();
+
+        var clockProp = apiType.Properties.FirstOrDefault(p => p.Name == "SystemClockIncorrect");
+        var clockGetter = clockProp?.GetMethod ?? apiType.Methods.FirstOrDefault(m => m.Name == "get_SystemClockIncorrect");
+        if (clockGetter != null)
+        {
+            clockGetter.Body.Instructions.Clear();
+            clockGetter.Body.Variables.Clear();
+            clockGetter.Body.ExceptionHandlers.Clear();
+            var clkIl = clockGetter.Body.GetILProcessor();
+            clkIl.Emit(OpCodes.Ldc_I4_0);
+            clkIl.Emit(OpCodes.Ret);
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("[*] Patched SystemClockIncorrect (bypassed PC clock check)");
+            Console.ResetColor();
+        }
 
         // 6. Patch Browser Privacy in KolkataOsController and KolkataOsBrowserHost
         var osControllerType = asm.MainModule.Types.FirstOrDefault(t => t.FullName == "Kolkata.UI.KolkataOsController");
